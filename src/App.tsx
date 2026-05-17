@@ -69,11 +69,13 @@ interface GrowthMetric {
   suffix: string;
   metric: string;
   prefix: string;
+  img?: string;
 }
 
 interface ProcessStep {
   title: string;
   desc: string;
+  img?: string;
 }
 
 interface PartnerLogo {
@@ -89,6 +91,8 @@ interface SiteContent {
   heroSubHeading: string;
   heroDescription: string;
   heroImage?: string;
+  heroBgUrl?: string; // New field
+  heroBgType?: 'IMAGE' | 'VIDEO'; // New field
   contactEmail: string;
   kakaoWebhookUrl?: string;
   services?: ServiceCategory[];
@@ -150,6 +154,24 @@ function MainSite() {
 
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [heroVideoId, setHeroVideoId] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Extract video ID if it's a YouTube URL
+    if (siteContent?.heroBgType === 'VIDEO' && siteContent?.heroBgUrl) {
+      let id = null;
+      if (siteContent.heroBgUrl.includes('youtu.be/')) {
+        id = siteContent.heroBgUrl.split('youtu.be/')[1].split('?')[0];
+      } else if (siteContent.heroBgUrl.includes('v=')) {
+        id = siteContent.heroBgUrl.split('v=')[1].split('&')[0];
+      } else if (siteContent.heroBgUrl.includes('/embed/')) {
+        id = siteContent.heroBgUrl.split('/embed/')[1].split('?')[0];
+      }
+      setHeroVideoId(id);
+    } else {
+      setHeroVideoId(null);
+    }
+  }, [siteContent?.heroBgUrl, siteContent?.heroBgType]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -390,19 +412,34 @@ function MainSite() {
 
       {/* Main Page Content - Hero (inspired by corporate agencies) */}
       <section className="relative h-screen flex items-center bg-brand-surface overflow-hidden pt-20">
-        {siteContent?.heroImage ? (
-          <div className="absolute inset-0">
-            <img 
-              src={siteContent.heroImage} 
-              alt="Hero Background" 
-              className="w-full h-full object-cover opacity-20"
+        {/* Background Layer */}
+        <div className="absolute inset-0 z-0">
+          {siteContent?.heroBgType === 'VIDEO' && heroVideoId ? (
+            <div className="absolute inset-0 pointer-events-none overflow-hidden grayscale contrast-125 opacity-30">
+               <iframe 
+                src={`https://www.youtube.com/embed/${heroVideoId}?autoplay=1&mute=1&controls=0&loop=1&playlist=${heroVideoId}&showinfo=0&rel=0&enablejsapi=1&modestbranding=1&iv_load_policy=3&disablekb=1`}
+                className="w-[100vw] h-[56.25vw] min-h-[100vh] min-w-[177.77vh] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
+                allow="autoplay; encrypted-media"
+                title="Hero Background Video"
+              />
+            </div>
+          ) : siteContent?.heroBgUrl ? (
+            <div 
+              className="absolute inset-0 bg-cover bg-center grayscale opacity-20"
+              style={{ backgroundImage: `url(${siteContent.heroBgUrl})` }}
               referrerPolicy="no-referrer"
             />
-            <div className="absolute inset-0 bg-gradient-to-b from-brand-surface/80 to-brand-surface" />
-          </div>
-        ) : (
-          <div className="absolute inset-0 bg-brand-surface pointer-events-none" />
-        )}
+          ) : siteContent?.heroImage ? (
+            <div 
+              className="absolute inset-0 bg-cover bg-center grayscale opacity-20"
+              style={{ backgroundImage: `url(${siteContent.heroImage})` }}
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <div className="absolute inset-0 bg-brand-surface" />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-b from-brand-surface/80 via-transparent to-brand-surface" />
+        </div>
         
         <div className="max-w-7xl mx-auto w-full px-6 relative z-10">
           <motion.div 
@@ -566,8 +603,13 @@ function MainSite() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-16">
             {displayGrowthMetrics.map((perf, i) => (
-              <div key={i} className="text-center">
-                <div className="text-7xl md:text-9xl font-display font-black border-b-4 border-black/5 pb-8 mb-8">
+              <div key={i} className="text-center group">
+                {perf.img && (
+                  <div className="mb-6 flex justify-center">
+                    <img src={perf.img} alt={perf.label} className="w-16 h-16 object-contain group-hover:scale-110 transition-transform" referrerPolicy="no-referrer" />
+                  </div>
+                )}
+                <div className={`text-7xl md:text-9xl font-display font-black border-b-4 border-black/5 pb-8 mb-8 ${!perf.img ? 'pt-10' : ''}`}>
                   {perf.prefix || ''}<Counter value={perf.value} suffix={perf.suffix} />
                 </div>
                 <div className="text-sm font-bold uppercase tracking-widest mb-2">{perf.label}</div>
@@ -603,7 +645,6 @@ function MainSite() {
                 className="group cursor-pointer"
                 onClick={() => {
                   if (p.category === 'CONTENTS' && p.videoUrl) {
-                    // Open youtube link or video
                     window.open(p.videoUrl.startsWith('http') ? p.videoUrl : `https://youtube.com/watch?v=${p.videoUrl}`, '_blank');
                   } else if (p.link) {
                     window.open(p.link, '_blank');
@@ -657,7 +698,7 @@ function MainSite() {
               <h2 className="text-4xl md:text-7xl font-display font-black uppercase leading-none italic">WORK <br/><span className="text-brand-accent">PROCESS</span></h2>
             </div>
             <p className="text-brand-text-muted text-lg max-w-sm mb-4 leading-relaxed font-medium">
-              기획부터 실행, 그리고 고도화된 분석까지<br/>곰애드만의 체계적인 4단계 프로세스입니다.
+              기획부터 실행, 그리고 고도화된 분석까지<br/>곰애드만의 체계적인 프로세스입니다.
             </p>
           </div>
 
@@ -669,14 +710,19 @@ function MainSite() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.1 }}
-                className="group relative bg-brand-surface p-10 h-80 flex flex-col justify-between overflow-hidden cursor-default"
+                className="group relative bg-brand-surface p-10 h-96 flex flex-col justify-between overflow-hidden cursor-default"
               >
                 <div className="absolute top-0 right-0 p-8">
                   <span className="text-5xl font-display font-black text-black/5 group-hover:text-brand-accent/20 transition-all duration-700 select-none">
                     0{i+1}
                   </span>
                 </div>
-                <div className="relative z-10">
+                <div className="relative z-10 flex-1 flex flex-col justify-center">
+                  {step.img && (
+                    <div className="mb-6">
+                      <img src={step.img} alt={step.title} className="w-12 h-12 object-contain group-hover:scale-110 transition-transform" referrerPolicy="no-referrer" />
+                    </div>
+                  )}
                   <h3 className="text-2xl font-bold mb-6 group-hover:text-brand-accent transition-colors">{step.title}</h3>
                   <p className="text-brand-text-muted leading-relaxed text-sm">{step.desc}</p>
                 </div>

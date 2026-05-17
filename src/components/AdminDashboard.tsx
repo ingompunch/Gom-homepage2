@@ -17,9 +17,12 @@ import {
   Trash2,
   Bell,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  GripVertical
 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
+import { DragDropContext, Droppable, Draggable as DraggableBase, DropResult } from '@hello-pangea/dnd';
+const Draggable = DraggableBase as any;
 import { db, storage, auth, OperationType, handleFirestoreError, serverTimestamp } from '../lib/firebase';
 import { doc, getDoc, setDoc, collection, getDocs, query, orderBy, Timestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -59,11 +62,13 @@ interface GrowthMetric {
   suffix: string;
   metric: string;
   prefix: string;
+  img?: string;
 }
 
 interface ProcessStep {
   title: string;
   desc: string;
+  img?: string;
 }
 
 interface PartnerLogo {
@@ -79,6 +84,8 @@ interface SiteContent {
   heroSubHeading: string;
   heroDescription: string;
   heroImage?: string;
+  heroBgUrl?: string;
+  heroBgType?: 'IMAGE' | 'VIDEO';
   contactEmail: string;
   kakaoWebhookUrl?: string;
   services?: ServiceCategory[];
@@ -98,6 +105,8 @@ export const AdminDashboard = () => {
     heroSubHeading: '',
     heroDescription: '',
     heroImage: '',
+    heroBgUrl: '',
+    heroBgType: 'IMAGE',
     contactEmail: '',
     kakaoWebhookUrl: '',
     services: [],
@@ -214,6 +223,18 @@ export const AdminDashboard = () => {
     }
   };
 
+  const addServiceCategory = () => {
+    setContent({ 
+      ...content, 
+      services: [...(content.services || []), { title: '', img: '', items: [] }] 
+    });
+  };
+
+  const removeServiceCategory = (index: number) => {
+    const newServices = [...(content.services || [])];
+    newServices.splice(index, 1);
+    setContent({ ...content, services: newServices });
+  };
   const updateServiceCategory = (index: number, field: keyof ServiceCategory, value: any) => {
     const newServices = [...(content.services || [])];
     newServices[index] = { ...newServices[index], [field]: value };
@@ -247,7 +268,7 @@ export const AdminDashboard = () => {
   };
 
   const addGrowthMetric = () => {
-    const newMetrics = [...(content.growthMetrics || []), { label: '', value: 0, suffix: '', metric: '', prefix: '' }];
+    const newMetrics = [...(content.growthMetrics || []), { label: '', value: 0, suffix: '', metric: '', prefix: '', img: '' }];
     setContent({ ...content, growthMetrics: newMetrics });
   };
 
@@ -346,7 +367,7 @@ export const AdminDashboard = () => {
   };
 
   const addProcessStep = () => {
-    setContent({ ...content, processes: [...(content.processes || []), { title: '', desc: '' }] });
+    setContent({ ...content, processes: [...(content.processes || []), { title: '', desc: '', img: '' }] });
   };
 
   const removeProcessStep = (index: number) => {
@@ -369,14 +390,16 @@ export const AdminDashboard = () => {
     setContent({ ...content, partnerLogos: (content.partnerLogos || []).filter(p => p.id !== id) });
   };
 
-  const moveItem = (arrayKey: keyof SiteContent, index: number, direction: 'up' | 'down') => {
+  const onDragEnd = (result: DropResult, arrayKey: keyof SiteContent) => {
+    if (!result.destination) return;
+    
     const array = content[arrayKey] as any[];
-    if (!array || (direction === 'up' && index === 0) || (direction === 'down' && index === array.length - 1)) return;
+    if (!array) return;
 
     const newArray = [...array];
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    [newArray[index], newArray[targetIndex]] = [newArray[targetIndex], newArray[index]];
-    
+    const [reorderedItem] = newArray.splice(result.source.index, 1);
+    newArray.splice(result.destination.index, 0, reorderedItem);
+
     setContent({ ...content, [arrayKey]: newArray });
   };
 
@@ -675,29 +698,56 @@ export const AdminDashboard = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] uppercase font-black tracking-widest text-brand-accent mb-2">Hero Image</label>
+                  <label className="block text-[10px] uppercase font-black tracking-widest text-brand-accent mb-4">Hero Background (Image or Video)</label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <button 
+                      onClick={() => setContent({ ...content, heroBgType: 'IMAGE' })}
+                      className={`py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${content.heroBgType === 'IMAGE' ? 'bg-brand-accent border-brand-accent' : 'bg-black/20 border-white/10 hover:border-white/30'}`}
+                    >
+                      Background Image
+                    </button>
+                    <button 
+                      onClick={() => setContent({ ...content, heroBgType: 'VIDEO' })}
+                      className={`py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${content.heroBgType === 'VIDEO' ? 'bg-brand-accent border-brand-accent' : 'bg-black/20 border-white/10 hover:border-white/30'}`}
+                    >
+                      Background Video (YouTube)
+                    </button>
+                  </div>
+                  
+                  <div className="flex gap-4 items-start">
+                    <input 
+                      type="text"
+                      value={content.heroBgUrl}
+                      onChange={(e) => setContent({ ...content, heroBgUrl: e.target.value })}
+                      className="flex-1 bg-black/40 border border-white/10 rounded-xl p-4 focus:border-brand-accent outline-none"
+                      placeholder={content.heroBgType === 'VIDEO' ? "YouTube URL (e.g. https://www.youtube.com/watch?v=...)" : "Image URL..."}
+                    />
+                    {content.heroBgType === 'IMAGE' && (
+                      <ImageDropzone 
+                        onUpload={(url) => setContent({ ...content, heroBgUrl: url })}
+                        className="bg-white/5 border border-white/10 p-4 rounded-xl hover:bg-white/10 flex items-center gap-2"
+                        label="Background Image Upload"
+                      >
+                        <Upload size={18} />
+                        <span className="text-xs font-bold uppercase">Upload</span>
+                      </ImageDropzone>
+                    )}
+                  </div>
+                  <p className="mt-2 text-[10px] text-white/20 italic">
+                    * {content.heroBgType === 'VIDEO' ? "유튜브 영상 주소를 입력하면 배경으로 재생됩니다. (소리 없음)" : "고화질 이미지를 배경으로 설정할 수 있습니다."}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase font-black tracking-widest text-white/30 mb-2">Old Hero Image (Deprecated - Use Background instead)</label>
                   <div className="flex gap-4 items-start">
                     <input 
                       type="text"
                       value={content.heroImage}
                       onChange={(e) => setContent({ ...content, heroImage: e.target.value })}
-                      className="flex-1 bg-black/40 border border-white/10 rounded-xl p-4 focus:border-brand-accent outline-none"
+                      className="flex-1 bg-black/40 border border-white/10 rounded-xl p-4 focus:border-brand-accent outline-none text-xs"
                       placeholder="https://images.unsplash.com/..."
                     />
-                      <ImageDropzone 
-                        onUpload={(url) => setContent({ ...content, heroImage: url })}
-                        className="bg-white/5 border border-white/10 p-4 rounded-xl hover:bg-white/10 flex items-center gap-2"
-                        label="Hero Image Upload"
-                      >
-                        <Upload size={18} />
-                        <span className="text-xs font-bold uppercase">Upload</span>
-                      </ImageDropzone>
                   </div>
-                  {content.heroImage && (
-                    <div className="mt-4 aspect-video rounded-lg overflow-hidden border border-white/10">
-                      <img src={content.heroImage} alt="Hero Preview" className="w-full h-full object-cover" />
-                    </div>
-                  )}
                 </div>
                 <div className="pt-6 border-t border-white/5">
                   <h4 className="text-sm font-bold text-white/60 mb-4 flex items-center gap-2">
@@ -730,427 +780,481 @@ export const AdminDashboard = () => {
           ) : activeTab === 'solutions' ? (
             <div className="space-y-8 max-w-4xl">
               <div className="space-y-6">
-                <h3 className="text-xl font-bold flex items-center gap-2">
-                  <span className="w-1 h-6 bg-brand-accent block" />
-                  비즈니스 솔루션 (Business Solutions)
-                </h3>
-                {content.services?.map((service, sIndex) => (
-                  <div key={sIndex} className="bg-white/5 p-8 rounded-2xl border border-white/10 space-y-6">
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-4">
-                        <label className="text-[10px] uppercase font-black tracking-widest text-brand-accent">Category #{sIndex + 1}</label>
-                        <div className="flex gap-1">
-                          <button 
-                            onClick={() => moveItem('services', sIndex, 'up')}
-                            disabled={sIndex === 0}
-                            className="p-1 text-white/20 hover:text-brand-accent disabled:opacity-0 transition-all"
-                          >
-                            <ArrowUp size={14} />
-                          </button>
-                          <button 
-                            onClick={() => moveItem('services', sIndex, 'down')}
-                            disabled={sIndex === (content.services?.length || 0) - 1}
-                            className="p-1 text-white/20 hover:text-brand-accent disabled:opacity-0 transition-all"
-                          >
-                            <ArrowDown size={14} />
-                          </button>
-                        </div>
+                <div className="flex justify-between items-end mb-6">
+                  <h3 className="text-xl font-bold flex items-center gap-2">
+                    <span className="w-1 h-6 bg-brand-accent block" />
+                    비즈니스 솔루션 (Business Solutions)
+                  </h3>
+                  <button 
+                    onClick={addServiceCategory}
+                    className="px-4 py-2 bg-white/5 border border-white/10 hover:border-brand-accent text-brand-accent font-black uppercase tracking-widest text-[10px] flex items-center gap-2 transition-all"
+                  >
+                    <Plus size={14} /> Add Category
+                  </button>
+                </div>
+
+                <DragDropContext onDragEnd={(res) => onDragEnd(res, 'services')}>
+                  <Droppable droppableId="services-list">
+                    {(provided) => (
+                      <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-6">
+                        {content.services?.map((service, sIndex) => (
+                          <Draggable key={`service-${sIndex}`} draggableId={`service-${sIndex}`} index={sIndex}>
+                            {(provided) => (
+                              <div 
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                className="bg-white/5 p-8 rounded-2xl border border-white/10 space-y-6 relative"
+                              >
+                                <div className="flex justify-between items-center">
+                                  <div className="flex items-center gap-4">
+                                    <div {...provided.dragHandleProps} className="p-2 -ml-4 text-white/10 hover:text-white/40 transition-colors">
+                                      <GripVertical size={20} />
+                                    </div>
+                                    <label className="text-[10px] uppercase font-black tracking-widest text-brand-accent">Category #{sIndex + 1}</label>
+                                  </div>
+                                  <button 
+                                    onClick={() => removeServiceCategory(sIndex)}
+                                    className="text-white/20 hover:text-red-500 transition-colors"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                    <label className="block text-[10px] uppercase font-black tracking-widest text-white/40 mb-2">Title</label>
+                                    <input 
+                                      type="text"
+                                      value={service.title}
+                                      onChange={(e) => updateServiceCategory(sIndex, 'title', e.target.value)}
+                                      className="w-full bg-black/40 border border-white/10 rounded-xl p-4 focus:border-brand-accent outline-none"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] uppercase font-black tracking-widest text-white/40 mb-2">Image URL</label>
+                                    <div className="flex gap-2">
+                                      <input 
+                                        type="text"
+                                        value={service.img}
+                                        onChange={(e) => updateServiceCategory(sIndex, 'img', e.target.value)}
+                                        className="flex-1 bg-black/40 border border-white/10 rounded-xl p-4 focus:border-brand-accent outline-none"
+                                      />
+                                      <ImageDropzone 
+                                        onUpload={(url) => updateServiceCategory(sIndex, 'img', url)}
+                                        className="bg-white/5 border border-white/10 p-4 rounded-xl hover:bg-white/10 flex items-center justify-center min-w-[50px]"
+                                        label="Service Image Upload"
+                                      >
+                                        <Upload size={18} />
+                                      </ImageDropzone>
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                <div className="space-y-4">
+                                  <label className="block text-[10px] uppercase font-black tracking-widest text-white/40">세부 항목 (Detail Items)</label>
+                                  {service.items.map((item, iIndex) => (
+                                    <div key={iIndex} className="grid grid-cols-12 gap-3 items-start">
+                                      <input 
+                                        type="text"
+                                        value={item.name}
+                                        onChange={(e) => updateServiceItem(sIndex, iIndex, 'name', e.target.value)}
+                                        placeholder="항목명 (e.g. Naver)"
+                                        className="col-span-3 bg-black/40 border border-white/10 rounded-lg p-3 text-sm focus:border-brand-accent outline-none"
+                                      />
+                                      <input 
+                                        type="text"
+                                        value={item.detail}
+                                        onChange={(e) => updateServiceItem(sIndex, iIndex, 'detail', e.target.value)}
+                                        placeholder="상세 설명"
+                                        className="col-span-8 bg-black/40 border border-white/10 rounded-lg p-3 text-sm focus:border-brand-accent outline-none"
+                                      />
+                                      <button 
+                                        onClick={() => removeServiceItem(sIndex, iIndex)}
+                                        className="col-span-1 p-3 text-white/20 hover:text-red-500 transition-colors"
+                                      >
+                                        ×
+                                      </button>
+                                    </div>
+                                  ))}
+                                  <button 
+                                    onClick={() => addServiceItem(sIndex)}
+                                    className="text-xs font-bold text-brand-accent hover:text-white transition-colors"
+                                  >
+                                    + 항목 추가하기
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </Draggable>
+                        ))}
+                        {provided.placeholder}
                       </div>
-                      <button 
-                        onClick={() => {
-                          const newServices = [...(content.services || [])];
-                          newServices.splice(sIndex, 1);
-                          setContent({ ...content, services: newServices });
-                        }}
-                        className="text-white/20 hover:text-red-500 transition-colors"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-[10px] uppercase font-black tracking-widest text-white/40 mb-2">Title</label>
-                        <input 
-                          type="text"
-                          value={service.title}
-                          onChange={(e) => updateServiceCategory(sIndex, 'title', e.target.value)}
-                          className="w-full bg-black/40 border border-white/10 rounded-xl p-4 focus:border-brand-accent outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] uppercase font-black tracking-widest text-white/40 mb-2">Image URL</label>
-                        <div className="flex gap-2">
-                          <input 
-                            type="text"
-                            value={service.img}
-                            onChange={(e) => updateServiceCategory(sIndex, 'img', e.target.value)}
-                            className="flex-1 bg-black/40 border border-white/10 rounded-xl p-4 focus:border-brand-accent outline-none"
-                          />
-                          <ImageDropzone 
-                            onUpload={(url) => updateServiceCategory(sIndex, 'img', url)}
-                            className="bg-white/5 border border-white/10 p-4 rounded-xl hover:bg-white/10 flex items-center justify-center min-w-[50px]"
-                            label="Service Image Upload"
-                          >
-                            <Upload size={18} />
-                          </ImageDropzone>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-4">
-                      <label className="block text-[10px] uppercase font-black tracking-widest text-white/40">세부 항목 (Detail Items)</label>
-                      {service.items.map((item, iIndex) => (
-                        <div key={iIndex} className="grid grid-cols-12 gap-3 items-start">
-                          <input 
-                            type="text"
-                            value={item.name}
-                            onChange={(e) => updateServiceItem(sIndex, iIndex, 'name', e.target.value)}
-                            placeholder="항목명 (e.g. Naver)"
-                            className="col-span-3 bg-black/40 border border-white/10 rounded-lg p-3 text-sm focus:border-brand-accent outline-none"
-                          />
-                          <input 
-                            type="text"
-                            value={item.detail}
-                            onChange={(e) => updateServiceItem(sIndex, iIndex, 'detail', e.target.value)}
-                            placeholder="상세 설명"
-                            className="col-span-8 bg-black/40 border border-white/10 rounded-lg p-3 text-sm focus:border-brand-accent outline-none"
-                          />
-                          <button 
-                            onClick={() => removeServiceItem(sIndex, iIndex)}
-                            className="col-span-1 p-3 text-white/20 hover:text-red-500 transition-colors"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
-                      <button 
-                        onClick={() => addServiceItem(sIndex)}
-                        className="text-xs font-bold text-brand-accent hover:text-white transition-colors"
-                      >
-                        + 항목 추가하기
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                    )}
+                  </Droppable>
+                </DragDropContext>
               </div>
             </div>
           ) : activeTab === 'growth' ? (
             <div className="space-y-8 max-w-4xl">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {content.growthMetrics?.map((metric, index) => (
-                  <div key={index} className="bg-white/5 p-6 rounded-2xl border border-white/10 space-y-4">
-                    <div className="flex justify-between items-center mb-4">
-                      <div className="flex items-center gap-4">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-brand-accent">Metric #{index + 1}</span>
-                        <div className="flex gap-1">
-                          <button 
-                            onClick={() => moveItem('growthMetrics', index, 'up')}
-                            disabled={index === 0}
-                            className="p-1 text-white/20 hover:text-brand-accent disabled:opacity-0 transition-all"
-                          >
-                            <ArrowUp size={14} />
-                          </button>
-                          <button 
-                            onClick={() => moveItem('growthMetrics', index, 'down')}
-                            disabled={index === (content.growthMetrics?.length || 0) - 1}
-                            className="p-1 text-white/20 hover:text-brand-accent disabled:opacity-0 transition-all"
-                          >
-                            <ArrowDown size={14} />
-                          </button>
-                        </div>
-                      </div>
-                      <button onClick={() => removeGrowthMetric(index)} className="text-white/20 hover:text-red-500 transition-colors">Delete</button>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-[10px] uppercase font-black tracking-widest text-white/40 mb-2">Label (e.g. Campaign Reach)</label>
-                        <input 
-                          type="text"
-                          value={metric.label}
-                          onChange={(e) => updateGrowthMetric(index, 'label', e.target.value)}
-                          className="w-full bg-black/40 border border-white/10 rounded-xl p-3 focus:border-brand-accent outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] uppercase font-black tracking-widest text-white/40 mb-2">Value (Number)</label>
-                        <input 
-                          type="number"
-                          value={metric.value}
-                          onChange={(e) => updateGrowthMetric(index, 'value', Number(e.target.value))}
-                          className="w-full bg-black/40 border border-white/10 rounded-xl p-3 focus:border-brand-accent outline-none font-bold text-brand-accent"
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-[10px] uppercase font-black tracking-widest text-white/40 mb-2">Prefix</label>
-                        <input 
-                          type="text"
-                          value={metric.prefix}
-                          onChange={(e) => updateGrowthMetric(index, 'prefix', e.target.value)}
-                          className="w-full bg-black/40 border border-white/10 rounded-xl p-3 focus:border-brand-accent outline-none"
-                          placeholder="+"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] uppercase font-black tracking-widest text-white/40 mb-2">Suffix</label>
-                        <input 
-                          type="text"
-                          value={metric.suffix}
-                          onChange={(e) => updateGrowthMetric(index, 'suffix', e.target.value)}
-                          className="w-full bg-black/40 border border-white/10 rounded-xl p-3 focus:border-brand-accent outline-none"
-                          placeholder="M+"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] uppercase font-black tracking-widest text-white/40 mb-2">Detail Metric</label>
-                        <input 
-                          type="text"
-                          value={metric.metric}
-                          onChange={(e) => updateGrowthMetric(index, 'metric', e.target.value)}
-                          className="w-full bg-black/40 border border-white/10 rounded-xl p-3 focus:border-brand-accent outline-none"
-                          placeholder="Accumulated..."
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
+               <div className="flex justify-between items-end mb-6">
+                <h3 className="text-xl font-bold flex items-center gap-2">
+                  <span className="w-1 h-6 bg-brand-accent block" />
+                  성장 수치 (Growth Metrics)
+                </h3>
+                <button 
+                  onClick={addGrowthMetric}
+                  className="px-4 py-2 bg-white/5 border border-white/10 hover:border-brand-accent text-brand-accent font-black uppercase tracking-widest text-[10px] flex items-center gap-2 transition-all"
+                >
+                  <Plus size={14} /> Add Metric
+                </button>
               </div>
-              <button 
-                onClick={addGrowthMetric}
-                className="w-full py-8 border-2 border-dashed border-white/10 rounded-2xl text-white/20 hover:text-brand-accent hover:border-brand-accent transition-all font-black uppercase tracking-widest"
-              >
-                + Add New Growth Metric
-              </button>
+
+              <DragDropContext onDragEnd={(res) => onDragEnd(res, 'growthMetrics')}>
+                <Droppable droppableId="growth-list">
+                  {(provided) => (
+                    <div {...provided.droppableProps} ref={provided.innerRef} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {content.growthMetrics?.map((metric, index) => (
+                        <Draggable key={`metric-${index}`} draggableId={`metric-${index}`} index={index}>
+                          {(provided) => (
+                            <div 
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              className="bg-white/5 p-6 rounded-2xl border border-white/10 space-y-4 relative group"
+                            >
+                              <div className="flex justify-between items-center mb-2">
+                                <div className="flex items-center gap-4">
+                                  <div {...provided.dragHandleProps} className="text-white/10 hover:text-white/40 transition-colors">
+                                    <GripVertical size={16} />
+                                  </div>
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-brand-accent">Metric #{index + 1}</span>
+                                </div>
+                                <button onClick={() => removeGrowthMetric(index)} className="text-white/20 hover:text-red-500 transition-colors">
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                              
+                              <div className="flex gap-4">
+                                <div className="w-24 shrink-0">
+                                  <label className="block text-[10px] uppercase font-black tracking-widest text-white/40 mb-2">Image/Icon</label>
+                                  <ImageDropzone 
+                                    onUpload={(url) => updateGrowthMetric(index, 'img', url)}
+                                    className="aspect-square bg-black/40 border border-white/10 rounded-xl flex items-center justify-center overflow-hidden hover:border-brand-accent"
+                                  >
+                                    {metric.img ? (
+                                      <img src={metric.img} alt="Metric icon" className="w-full h-full object-contain p-2" />
+                                    ) : (
+                                      <Upload size={16} className="text-white/20" />
+                                    )}
+                                  </ImageDropzone>
+                                </div>
+                                <div className="flex-1 space-y-4">
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                      <label className="block text-[10px] uppercase font-black tracking-widest text-white/40 mb-2">Label</label>
+                                      <input 
+                                        type="text"
+                                        value={metric.label}
+                                        onChange={(e) => updateGrowthMetric(index, 'label', e.target.value)}
+                                        className="w-full bg-black/40 border border-white/10 rounded-xl p-3 focus:border-brand-accent outline-none text-xs"
+                                        placeholder="Campaign Reach"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-[10px] uppercase font-black tracking-widest text-white/40 mb-2">Value</label>
+                                      <input 
+                                        type="number"
+                                        value={metric.value}
+                                        onChange={(e) => updateGrowthMetric(index, 'value', Number(e.target.value))}
+                                        className="w-full bg-black/40 border border-white/10 rounded-xl p-3 focus:border-brand-accent outline-none font-bold text-brand-accent text-xs"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="grid grid-cols-3 gap-3">
+                                    <div>
+                                      <label className="block text-[10px] uppercase font-black tracking-widest text-white/40 mb-2 font-mono">Pre</label>
+                                      <input 
+                                        type="text"
+                                        value={metric.prefix}
+                                        onChange={(e) => updateGrowthMetric(index, 'prefix', e.target.value)}
+                                        className="w-full bg-black/40 border border-white/10 rounded-xl p-2 focus:border-brand-accent outline-none text-[10px]"
+                                        placeholder="+"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-[10px] uppercase font-black tracking-widest text-white/40 mb-2 font-mono">Suf</label>
+                                      <input 
+                                        type="text"
+                                        value={metric.suffix}
+                                        onChange={(e) => updateGrowthMetric(index, 'suffix', e.target.value)}
+                                        className="w-full bg-black/40 border border-white/10 rounded-xl p-2 focus:border-brand-accent outline-none text-[10px]"
+                                        placeholder="M+"
+                                      />
+                                    </div>
+                                    <div className="col-span-1">
+                                      <label className="block text-[10px] uppercase font-black tracking-widest text-white/40 mb-2 font-mono">Detail</label>
+                                      <input 
+                                        type="text"
+                                        value={metric.metric}
+                                        onChange={(e) => updateGrowthMetric(index, 'metric', e.target.value)}
+                                        className="w-full bg-black/40 border border-white/10 rounded-xl p-2 focus:border-brand-accent outline-none text-[10px]"
+                                        placeholder="Accumulated..."
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </Draggable>
+                      ))}
+                      {provided.placeholder}
+                    </div>
+                  )}
+                </Droppable>
+              </DragDropContext>
             </div>
           ) : activeTab === 'portfolio' ? (
             <div className="space-y-8 max-w-5xl">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {content.portfolio?.map((item, index) => (
-                  <div key={index} className="bg-white/5 p-6 rounded-2xl border border-white/10 space-y-4 group relative">
-                    <div className="absolute top-4 right-4 flex gap-2 z-10 opacity-0 group-hover:opacity-100 transition-all">
-                      <button 
-                        onClick={() => moveItem('portfolio', index, 'up')}
-                        disabled={index === 0}
-                        className="w-8 h-8 flex items-center justify-center bg-black/50 text-white hover:bg-brand-accent rounded-full disabled:hidden"
-                      >
-                        <ArrowUp size={14} />
-                      </button>
-                      <button 
-                        onClick={() => moveItem('portfolio', index, 'down')}
-                        disabled={index === (content.portfolio?.length || 0) - 1}
-                        className="w-8 h-8 flex items-center justify-center bg-black/50 text-white hover:bg-brand-accent rounded-full disabled:hidden"
-                      >
-                        <ArrowDown size={14} />
-                      </button>
-                      <button 
-                        onClick={() => removePortfolioItem(index)}
-                        className="w-8 h-8 flex items-center justify-center bg-black/50 text-white hover:bg-red-500 rounded-full"
-                      >
-                        ×
-                      </button>
-                    </div>
-                    <div className="aspect-[16/10] bg-black/40 rounded-xl overflow-hidden mb-4 border border-white/5 group-hover:border-brand-accent transition-colors relative">
-                      {isUploading && (
-                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-20">
-                          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-brand-accent"></div>
-                        </div>
-                      )}
-                      
-                      {item.category === 'CONTENTS' && item.videoUrl ? (
-                        <iframe 
-                          src={`https://www.youtube.com/embed/${item.videoUrl.split('v=')[1]?.split('&')[0] || item.videoUrl.split('/').pop()}`}
-                          className="w-full h-full pointer-events-none"
-                          title={item.title}
-                        />
-                      ) : item.img ? (
-                        <img src={item.img} alt={item.title} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-white/10 font-bold uppercase tracking-widest text-xs">No Preview</div>
-                      )}
-                      
-                      <ImageDropzone
-                        onUpload={(url) => updatePortfolioItem(index, 'img', url)}
-                        className="absolute inset-0 flex flex-col items-center justify-center bg-black/0 group-hover:bg-black/60 opacity-0 group-hover:opacity-100"
-                        label="Portfolio Image Upload"
-                      >
-                         <Upload size={24} className="mb-2" />
-                         <span className="text-[10px] font-black uppercase">Change Image</span>
-                      </ImageDropzone>
-                    </div>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-[10px] uppercase font-black tracking-widest text-white/40 mb-2">Project Title</label>
-                        <input 
-                          type="text"
-                          value={item.title}
-                          onChange={(e) => updatePortfolioItem(index, 'title', e.target.value)}
-                          className="w-full bg-black/40 border border-white/10 rounded-xl p-3 focus:border-brand-accent outline-none font-bold"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-[10px] uppercase font-black tracking-widest text-white/40 mb-2">Category</label>
-                          <select 
-                            value={item.category}
-                            onChange={(e) => updatePortfolioItem(index, 'category', e.target.value as any)}
-                            className="w-full bg-black/40 border border-white/10 rounded-xl p-3 focus:border-brand-accent outline-none"
-                          >
-                            <option value="CONTENTS">CONTENTS</option>
-                            <option value="PERFORMANCE">PERFORMANCE</option>
-                            <option value="WEBSITE">WEBSITE</option>
-                            <option value="APP">APP</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-[10px] uppercase font-black tracking-widest text-white/40 mb-2">Thumbnail/Image</label>
-                          <div className="flex gap-2">
-                            <input 
-                              type="text"
-                              value={item.img}
-                              onChange={(e) => updatePortfolioItem(index, 'img', e.target.value)}
-                              placeholder="Image URL..."
-                              className="flex-1 bg-black/40 border border-white/10 rounded-xl p-3 focus:border-brand-accent outline-none text-xs"
-                            />
-                            <ImageDropzone 
-                              onUpload={(url) => updatePortfolioItem(index, 'img', url)}
-                              className="bg-white/5 border border-white/10 p-3 rounded-xl hover:bg-white/10 flex items-center justify-center min-w-[40px]"
-                              label="Portfolio Image Upload"
-                            >
-                              <Upload size={14} />
-                            </ImageDropzone>
-                          </div>
-                        </div>
-                      </div>
-
-                      {item.category === 'CONTENTS' && (
-                        <div>
-                          <label className="block text-[10px] uppercase font-black tracking-widest text-brand-accent mb-2">YouTube Link / Video URL</label>
-                          <input 
-                            type="text"
-                            value={item.videoUrl}
-                            onChange={(e) => updatePortfolioItem(index, 'videoUrl', e.target.value)}
-                            placeholder="https://youtube.com/watch?v=..."
-                            className="w-full bg-black/40 border border-brand-accent/20 border-dashed rounded-xl p-3 focus:border-brand-accent outline-none text-xs"
-                          />
-                        </div>
-                      )}
-
-                      {(item.category === 'PERFORMANCE' || item.category === 'WEBSITE' || item.category === 'APP') && (
-                        <div>
-                          <label className="block text-[10px] uppercase font-black tracking-widest text-brand-accent mb-2">Reference Link (Website/Detail)</label>
-                          <input 
-                            type="text"
-                            value={item.link}
-                            onChange={(e) => updatePortfolioItem(index, 'link', e.target.value)}
-                            placeholder="https://gomad.co.kr"
-                            className="w-full bg-black/40 border border-brand-accent/20 border-dashed rounded-xl p-3 focus:border-brand-accent outline-none text-xs"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
+              <div className="flex justify-between items-end mb-6">
+                <h3 className="text-xl font-bold flex items-center gap-2">
+                  <span className="w-1 h-6 bg-brand-accent block" />
+                  포트폴리오 (GOM WORK)
+                </h3>
+                <button 
+                  onClick={addPortfolioItem}
+                  className="px-4 py-2 bg-white/5 border border-white/10 hover:border-brand-accent text-brand-accent font-black uppercase tracking-widest text-[10px] flex items-center gap-2 transition-all"
+                >
+                  <Plus size={14} /> Add Portfolio
+                </button>
               </div>
-              <button 
-                onClick={addPortfolioItem}
-                className="w-full py-12 border-2 border-dashed border-white/10 rounded-2xl text-white/20 hover:text-brand-accent hover:border-brand-accent transition-all font-black uppercase tracking-widest"
-              >
-                + Add Portfolio Case Study
-              </button>
+
+              <DragDropContext onDragEnd={(res) => onDragEnd(res, 'portfolio')}>
+                <Droppable droppableId="portfolio-list" direction="horizontal">
+                  {(provided) => (
+                    <div 
+                      {...provided.droppableProps} 
+                      ref={provided.innerRef} 
+                      className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                    >
+                      {content.portfolio?.map((item, index) => (
+                        <Draggable key={`portfolio-${index}`} draggableId={`portfolio-${index}`} index={index}>
+                          {(provided) => (
+                            <div 
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              className="bg-white/5 p-6 rounded-2xl border border-white/10 space-y-4 group relative"
+                            >
+                              <div className="absolute top-4 right-4 flex gap-2 z-10 opacity-0 group-hover:opacity-100 transition-all">
+                                <div {...provided.dragHandleProps} className="w-8 h-8 flex items-center justify-center bg-black/50 text-white hover:bg-brand-accent rounded-full">
+                                  <GripVertical size={14} />
+                                </div>
+                                <button 
+                                  onClick={() => removePortfolioItem(index)}
+                                  className="w-8 h-8 flex items-center justify-center bg-black/50 text-white hover:bg-red-500 rounded-full"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                              <div className="aspect-[16/10] bg-black/40 rounded-xl overflow-hidden mb-4 border border-white/5 group-hover:border-brand-accent transition-colors relative">
+                                {isUploading && (
+                                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-20">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-brand-accent"></div>
+                                  </div>
+                                )}
+                                
+                                {item.category === 'CONTENTS' && item.videoUrl ? (
+                                  <iframe 
+                                    src={`https://www.youtube.com/embed/${item.videoUrl.split('v=')[1]?.split('&')[0] || item.videoUrl.split('/').pop()}`}
+                                    className="w-full h-full pointer-events-none"
+                                    title={item.title}
+                                  />
+                                ) : item.img ? (
+                                  <img src={item.img} alt={item.title} className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-white/10 font-bold uppercase tracking-widest text-xs">No Preview</div>
+                                )}
+                                
+                                <ImageDropzone
+                                  onUpload={(url) => updatePortfolioItem(index, 'img', url)}
+                                  className="absolute inset-0 flex flex-col items-center justify-center bg-black/0 group-hover:bg-black/60 opacity-0 group-hover:opacity-100"
+                                  label="Portfolio Image Upload"
+                                >
+                                  <Upload size={24} className="mb-2" />
+                                  <span className="text-[10px] font-black uppercase">Change Image</span>
+                                </ImageDropzone>
+                              </div>
+                              <div className="space-y-4">
+                                <div>
+                                  <label className="block text-[10px] uppercase font-black tracking-widest text-white/40 mb-2">Project Title</label>
+                                  <input 
+                                    type="text"
+                                    value={item.title}
+                                    onChange={(e) => updatePortfolioItem(index, 'title', e.target.value)}
+                                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 focus:border-brand-accent outline-none font-bold"
+                                  />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                    <label className="block text-[10px] uppercase font-black tracking-widest text-white/40 mb-2">Category</label>
+                                    <select 
+                                      value={item.category}
+                                      onChange={(e) => updatePortfolioItem(index, 'category', e.target.value as any)}
+                                      className="w-full bg-black/40 border border-white/10 rounded-xl p-3 focus:border-brand-accent outline-none"
+                                    >
+                                      <option value="CONTENTS">CONTENTS</option>
+                                      <option value="PERFORMANCE">PERFORMANCE</option>
+                                      <option value="WEBSITE">WEBSITE</option>
+                                      <option value="APP">APP</option>
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] uppercase font-black tracking-widest text-white/40 mb-2">Thumbnail/Image</label>
+                                    <div className="flex gap-2">
+                                      <input 
+                                        type="text"
+                                        value={item.img}
+                                        onChange={(e) => updatePortfolioItem(index, 'img', e.target.value)}
+                                        placeholder="Image URL..."
+                                        className="flex-1 bg-black/40 border border-white/10 rounded-xl p-3 focus:border-brand-accent outline-none text-xs"
+                                      />
+                                      <ImageDropzone 
+                                        onUpload={(url) => updatePortfolioItem(index, 'img', url)}
+                                        className="bg-white/5 border border-white/10 p-3 rounded-xl hover:bg-white/10 flex items-center justify-center min-w-[40px]"
+                                        label="Portfolio Image Upload"
+                                      >
+                                        <Upload size={14} />
+                                      </ImageDropzone>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {item.category === 'CONTENTS' && (
+                                  <div>
+                                    <label className="block text-[10px] uppercase font-black tracking-widest text-brand-accent mb-2">YouTube Link / Video URL</label>
+                                    <input 
+                                      type="text"
+                                      value={item.videoUrl}
+                                      onChange={(e) => updatePortfolioItem(index, 'videoUrl', e.target.value)}
+                                      placeholder="https://youtube.com/watch?v=..."
+                                      className="w-full bg-black/40 border border-brand-accent/20 border-dashed rounded-xl p-3 focus:border-brand-accent outline-none text-xs"
+                                    />
+                                  </div>
+                                )}
+
+                                {(item.category === 'PERFORMANCE' || item.category === 'WEBSITE' || item.category === 'APP') && (
+                                  <div>
+                                    <label className="block text-[10px] uppercase font-black tracking-widest text-brand-accent mb-2">Reference Link (Website/Detail)</label>
+                                    <input 
+                                      type="text"
+                                      value={item.link}
+                                      onChange={(e) => updatePortfolioItem(index, 'link', e.target.value)}
+                                      placeholder="https://gomad.co.kr"
+                                      className="w-full bg-black/40 border border-brand-accent/20 border-dashed rounded-xl p-3 focus:border-brand-accent outline-none text-xs"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </Draggable>
+                      ))}
+                      {provided.placeholder}
+                    </div>
+                  )}
+                </Droppable>
+              </DragDropContext>
             </div>
           ) : activeTab === 'process' ? (
             <div className="space-y-8 max-w-3xl">
-              <div className="space-y-6">
-                {content.processes?.map((step, index) => (
-                  <div key={index} className="bg-white/5 p-8 rounded-2xl border border-white/10 space-y-4">
-                    <div className="flex justify-between items-center mb-4">
-                      <div className="flex items-center gap-4">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-brand-accent">Step {index + 1}</span>
-                        <div className="flex gap-1">
-                          <button 
-                            onClick={() => moveItem('processes', index, 'up')}
-                            disabled={index === 0}
-                            className="p-1 text-white/20 hover:text-brand-accent disabled:opacity-0 transition-all"
-                          >
-                            <ArrowUp size={14} />
-                          </button>
-                          <button 
-                            onClick={() => moveItem('processes', index, 'down')}
-                            disabled={index === (content.processes?.length || 0) - 1}
-                            className="p-1 text-white/20 hover:text-brand-accent disabled:opacity-0 transition-all"
-                          >
-                            <ArrowDown size={14} />
-                          </button>
-                        </div>
-                      </div>
-                      <button onClick={() => removeProcessStep(index)} className="text-white/20 hover:text-red-500 transition-colors">
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] uppercase font-black tracking-widest text-white/40 mb-2">Process Name (e.g. Planning)</label>
-                      <input 
-                        type="text"
-                        value={step.title}
-                        onChange={(e) => updateProcessStep(index, 'title', e.target.value)}
-                        className="w-full bg-black/40 border border-white/10 rounded-xl p-4 focus:border-brand-accent outline-none text-xl font-bold"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] uppercase font-black tracking-widest text-white/40 mb-2">Description</label>
-                      <textarea 
-                        value={step.desc}
-                        onChange={(e) => updateProcessStep(index, 'desc', e.target.value)}
-                        className="w-full bg-black/40 border border-white/10 rounded-xl p-4 focus:border-brand-accent outline-none text-white/70 min-h-[100px]"
-                      />
-                    </div>
-                  </div>
-                ))}
+              <div className="flex justify-between items-end mb-6">
+                <h3 className="text-xl font-bold flex items-center gap-2">
+                  <span className="w-1 h-6 bg-brand-accent block" />
+                  프로세스 (Work Process)
+                </h3>
+                <button 
+                  onClick={addProcessStep}
+                  className="px-4 py-2 bg-white/5 border border-white/10 hover:border-brand-accent text-brand-accent font-black uppercase tracking-widest text-[10px] flex items-center gap-2 transition-all"
+                >
+                  <Plus size={14} /> Add Step
+                </button>
               </div>
-              <button 
-                onClick={addProcessStep}
-                className="w-full py-8 border-2 border-dashed border-white/10 rounded-2xl text-white/20 hover:text-brand-accent hover:border-brand-accent transition-all font-black uppercase tracking-widest flex items-center justify-center gap-3"
-              >
-                <Plus size={20} /> Add Next Process Step
-              </button>
+
+              <DragDropContext onDragEnd={(res) => onDragEnd(res, 'processes')}>
+                <Droppable droppableId="process-list">
+                  {(provided) => (
+                    <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-6">
+                      {content.processes?.map((step, index) => (
+                        <Draggable key={`step-${index}`} draggableId={`step-${index}`} index={index}>
+                          {(provided) => (
+                            <div 
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              className="bg-white/5 p-8 rounded-2xl border border-white/10 space-y-4 relative"
+                            >
+                              <div className="flex justify-between items-center mb-4">
+                                <div className="flex items-center gap-4">
+                                  <div {...provided.dragHandleProps} className="text-white/10 hover:text-white/40 transition-colors">
+                                    <GripVertical size={20} />
+                                  </div>
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-brand-accent">Step {index + 1}</span>
+                                </div>
+                                <button onClick={() => removeProcessStep(index)} className="text-white/20 hover:text-red-500 transition-colors">
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+
+                              <div className="flex gap-6">
+                                <div className="w-32 shrink-0">
+                                  <label className="block text-[10px] uppercase font-black tracking-widest text-white/40 mb-2">Step Icon/Img</label>
+                                  <ImageDropzone 
+                                    onUpload={(url) => updateProcessStep(index, 'img', url)}
+                                    className="aspect-square bg-black/40 border border-white/10 rounded-2xl flex items-center justify-center overflow-hidden hover:border-brand-accent border-dashed"
+                                  >
+                                    {step.img ? (
+                                      <img src={step.img} alt="Step icon" className="w-full h-full object-contain p-4" />
+                                    ) : (
+                                      <Upload size={24} className="text-white/20" />
+                                    )}
+                                  </ImageDropzone>
+                                </div>
+                                <div className="flex-1 space-y-6">
+                                   <div>
+                                    <label className="block text-[10px] uppercase font-black tracking-widest text-white/40 mb-2">Process Name</label>
+                                    <input 
+                                      type="text"
+                                      value={step.title}
+                                      onChange={(e) => updateProcessStep(index, 'title', e.target.value)}
+                                      className="w-full bg-black/40 border border-white/10 rounded-xl p-4 focus:border-brand-accent outline-none text-xl font-bold"
+                                      placeholder="Planning & Strategy"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] uppercase font-black tracking-widest text-white/40 mb-2">Description</label>
+                                    <textarea 
+                                      value={step.desc}
+                                      onChange={(e) => updateProcessStep(index, 'desc', e.target.value)}
+                                      className="w-full bg-black/40 border border-white/10 rounded-xl p-4 focus:border-brand-accent outline-none text-white/70 min-h-[100px]"
+                                      placeholder="데이터 분석을 통한 최적의 키워드 마이닝..."
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </Draggable>
+                      ))}
+                      {provided.placeholder}
+                    </div>
+                  )}
+                </Droppable>
+              </DragDropContext>
             </div>
           ) : activeTab === 'partners' ? (
             <div className="space-y-8 max-w-5xl">
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
-                {content.partnerLogos?.map((logo, index) => (
-                  <div key={logo.id} className="bg-white/5 border border-white/10 p-6 rounded-2xl relative group">
-                    <div className="absolute -top-3 -right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-all z-10">
-                      <button 
-                        onClick={() => moveItem('partnerLogos', index, 'up')}
-                        disabled={index === 0}
-                        className="w-8 h-8 bg-black border border-white/10 text-white rounded-full flex items-center justify-center hover:bg-brand-accent disabled:hidden"
-                      >
-                        <ArrowLeft size={14} />
-                      </button>
-                      <button 
-                        onClick={() => moveItem('partnerLogos', index, 'down')}
-                        disabled={index === (content.partnerLogos?.length || 0) - 1}
-                        className="w-8 h-8 bg-black border border-white/10 text-white rounded-full flex items-center justify-center hover:bg-brand-accent disabled:hidden"
-                      >
-                        <ArrowLeft size={14} className="rotate-180" />
-                      </button>
-                      <button 
-                        onClick={() => removePartnerLogo(logo.id)}
-                        className="w-8 h-8 bg-black border border-white/10 text-white rounded-full flex items-center justify-center hover:bg-red-500"
-                      >
-                        ×
-                      </button>
-                    </div>
-                    <div className="aspect-video flex items-center justify-center bg-white/10 rounded-xl overflow-hidden mb-4 p-4">
-                      {logo.url ? (
-                        <img src={logo.url} alt={logo.name} className="max-w-full max-h-full object-contain grayscale" />
-                      ) : (
-                        <span className="text-[10px] font-black uppercase text-white/10 italic">Empty Logo</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
+              <div className="flex justify-between items-end mb-6">
+                <h3 className="text-xl font-bold flex items-center gap-2">
+                  <span className="w-1 h-6 bg-brand-accent block" />
+                  파트너 로고 (Partners & Logos)
+                </h3>
                 <ImageDropzone
                   onUpload={(url) => {
                     setContent({ 
@@ -1158,13 +1262,56 @@ export const AdminDashboard = () => {
                       partnerLogos: [...(content.partnerLogos || []), { id: Date.now().toString(), url, name: '' }] 
                     });
                   }}
-                  className="border-2 border-dashed border-white/10 rounded-2xl aspect-video flex flex-col items-center justify-center text-white/20 hover:text-brand-accent hover:border-brand-accent group"
+                  className="px-4 py-2 bg-white/5 border border-white/10 hover:border-brand-accent text-brand-accent font-black uppercase tracking-widest text-[10px] flex items-center gap-2 transition-all cursor-pointer"
                   label="Logo Upload"
                 >
-                  <Upload size={32} className="mb-2 group-hover:scale-110 transition-transform" />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Logo Upload</span>
+                  <Plus size={14} /> Add Logo
                 </ImageDropzone>
               </div>
+
+              <DragDropContext onDragEnd={(res) => onDragEnd(res, 'partnerLogos')}>
+                <Droppable droppableId="partners-list" direction="horizontal">
+                  {(provided) => (
+                    <div 
+                      {...provided.droppableProps} 
+                      ref={provided.innerRef} 
+                      className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6"
+                    >
+                      {content.partnerLogos?.map((logo, index) => (
+                        <Draggable key={logo.id} draggableId={logo.id} index={index}>
+                          {(provided) => (
+                            <div 
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              className="bg-white/5 border border-white/10 p-6 rounded-2xl relative group"
+                            >
+                              <div className="absolute -top-3 -right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-all z-10">
+                                <div {...provided.dragHandleProps} className="w-8 h-8 bg-black border border-white/10 text-white rounded-full flex items-center justify-center hover:bg-brand-accent">
+                                  <GripVertical size={12} />
+                                </div>
+                                <button 
+                                  onClick={() => removePartnerLogo(logo.id)}
+                                  className="w-8 h-8 bg-black border border-white/10 text-white rounded-full flex items-center justify-center hover:bg-red-500"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                              <div className="aspect-video flex items-center justify-center bg-white/10 rounded-xl overflow-hidden p-4">
+                                {logo.url ? (
+                                  <img src={logo.url} alt={logo.name} className="max-w-full max-h-full object-contain grayscale" />
+                                ) : (
+                                  <span className="text-[10px] font-black uppercase text-white/10 italic">Empty Logo</span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </Draggable>
+                      ))}
+                      {provided.placeholder}
+                    </div>
+                  )}
+                </Droppable>
+              </DragDropContext>
               <p className="text-white/20 text-xs italic">* 투명 배경(PNG) 로고 사용을 권장합니다. 홈 하단 배너에 자동으로 흐릅니다.</p>
             </div>
           ) : (
