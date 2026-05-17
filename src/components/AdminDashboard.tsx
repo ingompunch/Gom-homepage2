@@ -15,7 +15,9 @@ import {
   Upload,
   Plus,
   Trash2,
-  Bell
+  Bell,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { db, storage, auth, OperationType, handleFirestoreError, serverTimestamp } from '../lib/firebase';
@@ -365,6 +367,17 @@ export const AdminDashboard = () => {
 
   const removePartnerLogo = (id: string) => {
     setContent({ ...content, partnerLogos: (content.partnerLogos || []).filter(p => p.id !== id) });
+  };
+
+  const moveItem = (arrayKey: keyof SiteContent, index: number, direction: 'up' | 'down') => {
+    const array = content[arrayKey] as any[];
+    if (!array || (direction === 'up' && index === 0) || (direction === 'down' && index === array.length - 1)) return;
+
+    const newArray = [...array];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    [newArray[index], newArray[targetIndex]] = [newArray[targetIndex], newArray[index]];
+    
+    setContent({ ...content, [arrayKey]: newArray });
   };
 
   if (isLoading || authLoading) {
@@ -724,7 +737,35 @@ export const AdminDashboard = () => {
                 {content.services?.map((service, sIndex) => (
                   <div key={sIndex} className="bg-white/5 p-8 rounded-2xl border border-white/10 space-y-6">
                     <div className="flex justify-between items-center">
-                      <label className="text-[10px] uppercase font-black tracking-widest text-brand-accent">Category #{sIndex + 1}</label>
+                      <div className="flex items-center gap-4">
+                        <label className="text-[10px] uppercase font-black tracking-widest text-brand-accent">Category #{sIndex + 1}</label>
+                        <div className="flex gap-1">
+                          <button 
+                            onClick={() => moveItem('services', sIndex, 'up')}
+                            disabled={sIndex === 0}
+                            className="p-1 text-white/20 hover:text-brand-accent disabled:opacity-0 transition-all"
+                          >
+                            <ArrowUp size={14} />
+                          </button>
+                          <button 
+                            onClick={() => moveItem('services', sIndex, 'down')}
+                            disabled={sIndex === (content.services?.length || 0) - 1}
+                            className="p-1 text-white/20 hover:text-brand-accent disabled:opacity-0 transition-all"
+                          >
+                            <ArrowDown size={14} />
+                          </button>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => {
+                          const newServices = [...(content.services || [])];
+                          newServices.splice(sIndex, 1);
+                          setContent({ ...content, services: newServices });
+                        }}
+                        className="text-white/20 hover:text-red-500 transition-colors"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
@@ -799,7 +840,25 @@ export const AdminDashboard = () => {
                 {content.growthMetrics?.map((metric, index) => (
                   <div key={index} className="bg-white/5 p-6 rounded-2xl border border-white/10 space-y-4">
                     <div className="flex justify-between items-center mb-4">
-                      <span className="text-[10px] font-black uppercase tracking-widest text-brand-accent">Metric #{index + 1}</span>
+                      <div className="flex items-center gap-4">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-brand-accent">Metric #{index + 1}</span>
+                        <div className="flex gap-1">
+                          <button 
+                            onClick={() => moveItem('growthMetrics', index, 'up')}
+                            disabled={index === 0}
+                            className="p-1 text-white/20 hover:text-brand-accent disabled:opacity-0 transition-all"
+                          >
+                            <ArrowUp size={14} />
+                          </button>
+                          <button 
+                            onClick={() => moveItem('growthMetrics', index, 'down')}
+                            disabled={index === (content.growthMetrics?.length || 0) - 1}
+                            className="p-1 text-white/20 hover:text-brand-accent disabled:opacity-0 transition-all"
+                          >
+                            <ArrowDown size={14} />
+                          </button>
+                        </div>
+                      </div>
                       <button onClick={() => removeGrowthMetric(index)} className="text-white/20 hover:text-red-500 transition-colors">Delete</button>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
@@ -869,12 +928,28 @@ export const AdminDashboard = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {content.portfolio?.map((item, index) => (
                   <div key={index} className="bg-white/5 p-6 rounded-2xl border border-white/10 space-y-4 group relative">
-                    <button 
-                      onClick={() => removePortfolioItem(index)}
-                      className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center bg-black/50 text-white hover:bg-red-500 rounded-full opacity-0 group-hover:opacity-100 transition-all z-10"
-                    >
-                      ×
-                    </button>
+                    <div className="absolute top-4 right-4 flex gap-2 z-10 opacity-0 group-hover:opacity-100 transition-all">
+                      <button 
+                        onClick={() => moveItem('portfolio', index, 'up')}
+                        disabled={index === 0}
+                        className="w-8 h-8 flex items-center justify-center bg-black/50 text-white hover:bg-brand-accent rounded-full disabled:hidden"
+                      >
+                        <ArrowUp size={14} />
+                      </button>
+                      <button 
+                        onClick={() => moveItem('portfolio', index, 'down')}
+                        disabled={index === (content.portfolio?.length || 0) - 1}
+                        className="w-8 h-8 flex items-center justify-center bg-black/50 text-white hover:bg-brand-accent rounded-full disabled:hidden"
+                      >
+                        <ArrowDown size={14} />
+                      </button>
+                      <button 
+                        onClick={() => removePortfolioItem(index)}
+                        className="w-8 h-8 flex items-center justify-center bg-black/50 text-white hover:bg-red-500 rounded-full"
+                      >
+                        ×
+                      </button>
+                    </div>
                     <div className="aspect-[16/10] bg-black/40 rounded-xl overflow-hidden mb-4 border border-white/5 group-hover:border-brand-accent transition-colors relative">
                       {isUploading && (
                         <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-20">
@@ -990,7 +1065,25 @@ export const AdminDashboard = () => {
                 {content.processes?.map((step, index) => (
                   <div key={index} className="bg-white/5 p-8 rounded-2xl border border-white/10 space-y-4">
                     <div className="flex justify-between items-center mb-4">
-                      <span className="text-[10px] font-black uppercase tracking-widest text-brand-accent">Step {index + 1}</span>
+                      <div className="flex items-center gap-4">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-brand-accent">Step {index + 1}</span>
+                        <div className="flex gap-1">
+                          <button 
+                            onClick={() => moveItem('processes', index, 'up')}
+                            disabled={index === 0}
+                            className="p-1 text-white/20 hover:text-brand-accent disabled:opacity-0 transition-all"
+                          >
+                            <ArrowUp size={14} />
+                          </button>
+                          <button 
+                            onClick={() => moveItem('processes', index, 'down')}
+                            disabled={index === (content.processes?.length || 0) - 1}
+                            className="p-1 text-white/20 hover:text-brand-accent disabled:opacity-0 transition-all"
+                          >
+                            <ArrowDown size={14} />
+                          </button>
+                        </div>
+                      </div>
                       <button onClick={() => removeProcessStep(index)} className="text-white/20 hover:text-red-500 transition-colors">
                         <Trash2 size={16} />
                       </button>
@@ -1025,14 +1118,30 @@ export const AdminDashboard = () => {
           ) : activeTab === 'partners' ? (
             <div className="space-y-8 max-w-5xl">
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
-                {content.partnerLogos?.map((logo) => (
+                {content.partnerLogos?.map((logo, index) => (
                   <div key={logo.id} className="bg-white/5 border border-white/10 p-6 rounded-2xl relative group">
-                    <button 
-                      onClick={() => removePartnerLogo(logo.id)}
-                      className="absolute -top-3 -right-3 w-8 h-8 bg-black border border-white/10 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center z-10 hover:bg-red-500"
-                    >
-                      ×
-                    </button>
+                    <div className="absolute -top-3 -right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-all z-10">
+                      <button 
+                        onClick={() => moveItem('partnerLogos', index, 'up')}
+                        disabled={index === 0}
+                        className="w-8 h-8 bg-black border border-white/10 text-white rounded-full flex items-center justify-center hover:bg-brand-accent disabled:hidden"
+                      >
+                        <ArrowLeft size={14} />
+                      </button>
+                      <button 
+                        onClick={() => moveItem('partnerLogos', index, 'down')}
+                        disabled={index === (content.partnerLogos?.length || 0) - 1}
+                        className="w-8 h-8 bg-black border border-white/10 text-white rounded-full flex items-center justify-center hover:bg-brand-accent disabled:hidden"
+                      >
+                        <ArrowLeft size={14} className="rotate-180" />
+                      </button>
+                      <button 
+                        onClick={() => removePartnerLogo(logo.id)}
+                        className="w-8 h-8 bg-black border border-white/10 text-white rounded-full flex items-center justify-center hover:bg-red-500"
+                      >
+                        ×
+                      </button>
+                    </div>
                     <div className="aspect-video flex items-center justify-center bg-white/10 rounded-xl overflow-hidden mb-4 p-4">
                       {logo.url ? (
                         <img src={logo.url} alt={logo.name} className="max-w-full max-h-full object-contain grayscale" />
