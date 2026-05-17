@@ -1,0 +1,57 @@
+{
+  "entities": {
+    "SiteContent": {
+      "title": "Site Content",
+      "description": "Dynamic content for the website including logos, hero text and metadata.",
+      "type": "object",
+      "properties": {
+        "logoUrl": { "type": "string", "description": "URL of the main logo image" },
+        "faviconUrl": { "type": "string", "description": "URL of the tab icon/favicon" },
+        "heroHeading": { "type": "string" },
+        "heroSubHeading": { "type": "string" },
+        "heroDescription": { "type": "string" },
+        "contactEmail": { "type": "string", "format": "email" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["heroHeading", "heroSubHeading", "heroDescription", "contactEmail"]
+    },
+    "Inquiry": {
+      "title": "Contact Inquiry",
+      "description": "Messages sent by potential clients via the contact form.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "contact": { "type": "string" },
+        "message": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["new", "read", "resolved"] },
+        "source": { "type": "string" }
+      },
+      "required": ["name", "contact", "message", "createdAt"]
+    },
+    "Admin": {
+      "title": "Administrator",
+      "description": "Users with administrative privileges.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["admin"] }
+      },
+      "required": ["email", "role"]
+    }
+  },
+  "firestore": {
+    "/content/main": {
+      "schema": "SiteContent",
+      "description": "Singleton document containing the main site content."
+    },
+    "/inquiries/{inquiryId}": {
+      "schema": "Inquiry",
+      "description": "Collection of user inquiries."
+    },
+    "/admins/{uid}": {
+      "schema": "Admin",
+      "description": "Collection of administrative users."
+    }
+  }
+}

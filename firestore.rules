@@ -1,0 +1,67 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Phase 3: Primitive Definition
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isSignedIn() { return request.auth != null; }
+    
+    // Admin check: checks if UID is in admins collection OR if email is the bootstrapped admin
+    function isAdmin() { 
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'drive5746@gmail.com'
+      );
+    }
+
+    // Phase 4: Entity Validation Helpers
+    function isValidInquiry(data) {
+      return data.keys().hasAll(['name', 'contact', 'message', 'createdAt', 'status']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
+             data.contact is string && data.contact.size() > 0 && data.contact.size() <= 200 &&
+             data.message is string && data.message.size() > 0 && data.message.size() <= 10000 &&
+             data.status in ['new', 'read', 'resolved'] &&
+             (!('source' in data) || (data.source is string && data.source.size() <= 100)) &&
+             data.createdAt == request.time;
+    }
+
+    function isValidSiteContent(data) {
+      return data.heroHeading is string && data.heroHeading.size() <= 2000 &&
+             data.heroSubHeading is string && data.heroSubHeading.size() <= 2000 &&
+             data.heroDescription is string && data.heroDescription.size() <= 10000 &&
+             data.contactEmail is string && data.contactEmail.size() <= 300 &&
+             (!('logoUrl' in data) || (data.logoUrl is string && data.logoUrl.size() <= 2000)) &&
+             (!('faviconUrl' in data) || (data.faviconUrl is string && data.faviconUrl.size() <= 2000)) &&
+             (!('heroImage' in data) || (data.heroImage is string && data.heroImage.size() <= 2000)) &&
+             (!('kakaoWebhookUrl' in data) || (data.kakaoWebhookUrl is string && data.kakaoWebhookUrl.size() <= 2000)) &&
+             data.updatedAt == request.time;
+    }
+
+    // Rules for Inquiries
+    match /inquiries/{inquiryId} {
+      // Create is public but needs validation
+      allow create: if isValidId(inquiryId) && isValidInquiry(incoming());
+      // Only admins can see/manage inquiries (PII exposure prevention)
+      allow get, list, update, delete: if isAdmin();
+    }
+
+    // Rules for Content
+    match /content/{docId} {
+      allow read: if true;
+      allow write: if isAdmin() && (docId == 'main' ? isValidSiteContent(incoming()) : true);
+    }
+
+    // Rules for Admins
+    match /admins/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow write: if isAdmin();
+    }
+  }
+}
