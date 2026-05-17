@@ -87,7 +87,7 @@ interface SiteContent {
 }
 
 export const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState<'content' | 'inquiries' | 'growth' | 'portfolio' | 'partners' | 'process'>('content');
+  const [activeTab, setActiveTab] = useState<'content' | 'solutions' | 'growth' | 'portfolio' | 'partners' | 'process' | 'inquiries'>('content');
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
   const [content, setContent] = useState<SiteContent>({
     logoUrl: '',
@@ -455,6 +455,13 @@ export const AdminDashboard = () => {
               <span className="font-bold text-sm">기본 콘텐츠</span>
             </button>
             <button 
+              onClick={() => setActiveTab('solutions')}
+              className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all ${activeTab === 'solutions' ? 'bg-brand-accent text-white' : 'hover:bg-white/5 text-white/50'}`}
+            >
+              <LayoutDashboard size={20} />
+              <span className="font-bold text-sm">비즈니스 솔루션</span>
+            </button>
+            <button 
               onClick={() => setActiveTab('growth')}
               className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all ${activeTab === 'growth' ? 'bg-brand-accent text-white' : 'hover:bg-white/5 text-white/50'}`}
             >
@@ -514,6 +521,7 @@ export const AdminDashboard = () => {
           <div>
             <h2 className="text-3xl font-display font-black uppercase mb-2">
               {activeTab === 'content' ? 'Main Content' : 
+               activeTab === 'solutions' ? 'Business Solutions' :
                activeTab === 'growth' ? 'Growth Metrics' :
                activeTab === 'portfolio' ? 'Portfolio (GOM WORK)' : 
                activeTab === 'process' ? 'Work Process' :
@@ -521,6 +529,7 @@ export const AdminDashboard = () => {
             </h2>
             <p className="text-white/40 text-sm italic">
               {activeTab === 'content' ? 'Hero 섹션 및 기본 정보를 관리합니다.' :
+               activeTab === 'solutions' ? '홈페이지의 비즈니스 솔루션(Services) 섹션을 관리합니다.' :
                activeTab === 'growth' ? 'NUMBERS OF GROWTH 섹션의 수치들을 관리합니다.' :
                activeTab === 'portfolio' ? 'GOM WORK 섹션의 포트폴리오 항목들을 관리합니다.' :
                activeTab === 'process' ? '작업 절차를 소비자에게 설명하는 프로세스 섹션입니다.' :
@@ -704,8 +713,9 @@ export const AdminDashboard = () => {
                   />
                 </div>
               </div>
-
-              {/* Services Section */}
+            </div>
+          ) : activeTab === 'solutions' ? (
+            <div className="space-y-8 max-w-4xl">
               <div className="space-y-6">
                 <h3 className="text-xl font-bold flex items-center gap-2">
                   <span className="w-1 h-6 bg-brand-accent block" />
