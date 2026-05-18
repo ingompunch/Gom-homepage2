@@ -93,6 +93,9 @@ interface SiteContent {
   heroImage?: string;
   heroBgUrl?: string; // New field
   heroBgType?: 'IMAGE' | 'VIDEO'; // New field
+  ogImage?: string; // Social share image
+  ogTitle?: string; // Social share title
+  ogDescription?: string; // Social share description
   contactEmail: string;
   kakaoWebhookUrl?: string;
   services?: ServiceCategory[];
@@ -208,8 +211,23 @@ function MainSite() {
       }
     }
 
+    // Dynamically update Title and Meta Tags
+    if (siteContent?.ogTitle) {
+      document.title = siteContent.ogTitle;
+    }
+
+    if (siteContent?.ogDescription) {
+      let metaDesc = document.querySelector('meta[name="description"]');
+      if (!metaDesc) {
+        metaDesc = document.createElement('meta');
+        metaDesc.setAttribute('name', 'description');
+        document.head.appendChild(metaDesc);
+      }
+      metaDesc.setAttribute('content', siteContent.ogDescription);
+    }
+
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [siteContent?.faviconUrl]);
+  }, [siteContent?.faviconUrl, siteContent?.ogTitle, siteContent?.ogDescription]);
 
   const businessAreas = [
     {

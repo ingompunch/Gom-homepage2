@@ -18,7 +18,8 @@ import {
   Bell,
   ArrowUp,
   ArrowDown,
-  GripVertical
+  GripVertical,
+  Target
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DragDropContext, Droppable, Draggable as DraggableBase, DropResult } from '@hello-pangea/dnd';
@@ -86,6 +87,9 @@ interface SiteContent {
   heroImage?: string;
   heroBgUrl?: string;
   heroBgType?: 'IMAGE' | 'VIDEO';
+  ogImage?: string;
+  ogTitle?: string;
+  ogDescription?: string;
   contactEmail: string;
   kakaoWebhookUrl?: string;
   services?: ServiceCategory[];
@@ -96,7 +100,7 @@ interface SiteContent {
 }
 
 export const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState<'content' | 'solutions' | 'growth' | 'portfolio' | 'partners' | 'process' | 'inquiries'>('content');
+  const [activeTab, setActiveTab] = useState<'content' | 'solutions' | 'growth' | 'portfolio' | 'partners' | 'process' | 'seo' | 'inquiries'>('content');
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
   const [content, setContent] = useState<SiteContent>({
     logoUrl: '',
@@ -107,6 +111,9 @@ export const AdminDashboard = () => {
     heroImage: '',
     heroBgUrl: '',
     heroBgType: 'IMAGE',
+    ogImage: '',
+    ogTitle: '',
+    ogDescription: '',
     contactEmail: '',
     kakaoWebhookUrl: '',
     services: [],
@@ -526,6 +533,13 @@ export const AdminDashboard = () => {
               <span className="font-bold text-sm">파트너 로고</span>
             </button>
             <button 
+              onClick={() => setActiveTab('seo')}
+              className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all ${activeTab === 'seo' ? 'bg-brand-accent text-white' : 'hover:bg-white/5 text-white/50'}`}
+            >
+              <Target size={20} />
+              <span className="font-bold text-sm">공유 설정 (SEO)</span>
+            </button>
+            <button 
               onClick={() => setActiveTab('inquiries')}
               className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all ${activeTab === 'inquiries' ? 'bg-brand-accent text-white' : 'hover:bg-white/5 text-white/50'}`}
             >
@@ -765,6 +779,23 @@ export const AdminDashboard = () => {
                     * 알리고(Aligo) 또는 카카오 비즈메시지 API의 Webhook URL을 입력하세요.<br />
                     * 미입력 시 이메일 접수 확인만 가능합니다.
                   </p>
+                </div>
+                <div className="pt-6 border-t border-white/5">
+                  <h4 className="text-sm font-bold text-white/60 mb-4 flex items-center gap-2">
+                    <CheckCircle2 size={16} className="text-brand-accent" /> 홈페이지 공유 시 노출 정보 (SEO)
+                  </h4>
+                  <p className="text-xs text-white/40 mb-6 leading-relaxed italic">
+                    * 이 정보는 사이트를 카카오톡, 블로그, 슬랙 등에 공유할 때 노출되는 미리보기 내용입니다.<br />
+                    * 더 자세한 설정은 왼쪽의 [공유 설정] 탭에서 가능합니다.
+                  </p>
+                  <label className="block text-[10px] uppercase font-black tracking-widest text-white/30 mb-2">Social Share Preview Title</label>
+                  <input 
+                    type="text"
+                    value={content.ogTitle}
+                    onChange={(e) => setContent({ ...content, ogTitle: e.target.value })}
+                    className="w-full bg-black/40 border border-white/10 rounded-xl p-4 focus:border-brand-accent outline-none text-xs mb-4"
+                    placeholder="곰애드 | AI 기반 종합 광고대행사"
+                  />
                 </div>
                 <div>
                   <label className="block text-[10px] uppercase font-black tracking-widest text-brand-accent mb-2">Contact Email</label>
@@ -1313,6 +1344,91 @@ export const AdminDashboard = () => {
                 </Droppable>
               </DragDropContext>
               <p className="text-white/20 text-xs italic">* 투명 배경(PNG) 로고 사용을 권장합니다. 홈 하단 배너에 자동으로 흐릅니다.</p>
+            </div>
+          ) : activeTab === 'seo' ? (
+            <div className="space-y-8 max-w-3xl">
+              <div className="bg-white/5 p-8 rounded-2xl border border-white/10 space-y-8">
+                <div>
+                  <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                    <span className="w-1 h-6 bg-brand-accent block" />
+                    검색 엔진 및 소셜 공유 설정
+                  </h3>
+                  <p className="text-white/40 text-sm leading-relaxed mb-8 italic">
+                    카카오톡, 블로그, 페이스북 등 외부 서비스에 홈페이지 주소를 공유했을 때 보여지는 미리보기 이미지와 텍스트를 관리합니다.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                  <div className="space-y-6">
+                    <div>
+                      <label className="block text-[10px] uppercase font-black tracking-widest text-brand-accent mb-4">Sharing Preview Image (OG Image)</label>
+                      <ImageDropzone 
+                        onUpload={(url) => setContent({ ...content, ogImage: url })}
+                        className="aspect-[1.91/1] bg-black/40 border border-white/10 rounded-2xl flex flex-col items-center justify-center group overflow-hidden border-dashed hover:border-brand-accent"
+                      >
+                        {content.ogImage ? (
+                          <>
+                            <img src={content.ogImage} alt="OG Preview" className="w-full h-full object-cover transition-transform group-hover:scale-105" />
+                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity">
+                              <Upload size={24} className="mb-2" />
+                              <span className="text-[10px] font-black uppercase">Change Image</span>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex flex-col items-center gap-2 text-white/20">
+                            <ImageIcon size={32} />
+                            <span className="text-[10px] font-black uppercase tracking-widest">Upload Share Image (1200x630px)</span>
+                          </div>
+                        )}
+                      </ImageDropzone>
+                    </div>
+                  </div>
+
+                  <div className="space-y-6">
+                    <div>
+                      <label className="block text-[10px] uppercase font-black tracking-widest text-brand-accent mb-2">Share Title</label>
+                      <input 
+                        type="text"
+                        value={content.ogTitle}
+                        onChange={(e) => setContent({ ...content, ogTitle: e.target.value })}
+                        className="w-full bg-black/40 border border-white/10 rounded-xl p-4 focus:border-brand-accent outline-none font-bold text-sm"
+                        placeholder="곰애드 | AI 기반 종합 광고대행사"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase font-black tracking-widest text-brand-accent mb-2">Share Description</label>
+                      <textarea 
+                        value={content.ogDescription}
+                        onChange={(e) => setContent({ ...content, ogDescription: e.target.value })}
+                        className="w-full bg-black/40 border border-white/10 rounded-xl p-4 focus:border-brand-accent outline-none text-white/70 min-h-[100px] text-xs"
+                        placeholder="귀사의 압도적 성장을 설계하는 전략 파트너. AI 퍼포먼스 마케팅의 정점을 경험하세요."
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-10 border-t border-white/5">
+                  <h4 className="text-xs font-black uppercase tracking-widest text-white/20 mb-6 flex items-center gap-2">
+                    <CheckCircle2 size={14} /> Preview (카카오톡/슬랙 미리보기 예시)
+                  </h4>
+                  <div className="bg-[#f0f0f0] rounded-2xl overflow-hidden max-w-sm mx-auto shadow-2xl">
+                    <div className="aspect-[1.91/1] bg-white">
+                      {content.ogImage ? (
+                        <img src={content.ogImage} alt="OG Preview" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-neutral-200">
+                          <ImageIcon size={48} className="text-neutral-300" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-4 bg-white">
+                      <h5 className="text-black font-bold text-sm truncate mb-1">{content.ogTitle || 'GOM AD | AI Performance Group'}</h5>
+                      <p className="text-neutral-500 text-xs line-clamp-2 leading-relaxed mb-3">{content.ogDescription || '신화 속 곰처럼 우직하게 성공을 완주하는 파트너.'}</p>
+                      <p className="text-blue-500 text-[10px] font-medium border-t border-neutral-100 pt-2">gomad.co.kr</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           ) : (
             <div className="space-y-4">
