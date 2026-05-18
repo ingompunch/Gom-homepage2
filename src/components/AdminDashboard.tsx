@@ -489,7 +489,7 @@ export const AdminDashboard = () => {
             <span className="font-display font-black text-xl tracking-tighter uppercase">ADMIN</span>
           </div>
 
-          <nav className="space-y-2">
+          <nav className="space-y-2 max-h-[calc(100vh-200px)] overflow-y-auto pr-2 custom-scrollbar">
             <button 
               onClick={() => setActiveTab('content')}
               className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all ${activeTab === 'content' ? 'bg-brand-accent text-white' : 'hover:bg-white/5 text-white/50'}`}
@@ -575,7 +575,8 @@ export const AdminDashboard = () => {
                activeTab === 'growth' ? 'Growth Metrics' :
                activeTab === 'portfolio' ? 'Portfolio (GOM WORK)' : 
                activeTab === 'process' ? 'Work Process' :
-               activeTab === 'partners' ? 'Partners & Logos' : 'Visitor Inquiries'}
+               activeTab === 'partners' ? 'Partners & Logos' : 
+               activeTab === 'seo' ? 'Search & Sharing (SEO)' : 'Visitor Inquiries'}
             </h2>
             <p className="text-white/40 text-sm italic">
               {activeTab === 'content' ? 'Hero 섹션 및 기본 정보를 관리합니다.' :
@@ -584,6 +585,7 @@ export const AdminDashboard = () => {
                activeTab === 'portfolio' ? 'GOM WORK 섹션의 포트폴리오 항목들을 관리합니다.' :
                activeTab === 'process' ? '작업 절차를 소비자에게 설명하는 프로세스 섹션입니다.' :
                activeTab === 'partners' ? '홈페이지 하단에 흐르는 파트너사 로고들을 관리합니다.' :
+               activeTab === 'seo' ? '검색 엔진 노출 및 소셜 미디어 공유 미리보기 설정을 관리합니다.' :
                '고객들이 남긴 문의 사항을 확인하고 관리하세요.'}
             </p>
           </div>
