@@ -52,24 +52,24 @@ async function startServer() {
       const image = content.ogImage || "https://gomad.co.kr/gom5.png";
       
       // Update Title
-      html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${title}</title>`);
+      html = html.replace(/<title>[\s\S]*?<\/title>/i, () => `<title>${title}</title>`);
       
       // Update Description
-      html = html.replace(/<meta\s+name="description"\s+content="[^"]*"\s*\/?>/i, `<meta name="description" content="${desc}" />`);
+      html = html.replace(/<meta\s+name="description"\s+content="[^"]*"\s*\/?>/i, () => `<meta name="description" content="${desc}" />`);
       
       // Update OG Tags
-      html = html.replace(/<meta\s+property="og:title"\s+content="[^"]*"\s*\/?>/i, `<meta property="og:title" content="${title}" />`);
-      html = html.replace(/<meta\s+property="og:description"\s+content="[^"]*"\s*\/?>/i, `<meta property="og:description" content="${desc}" />`);
-      html = html.replace(/<meta\s+property="og:image"\s+content="[^"]*"\s*\/?>/i, `<meta property="og:image" content="${image}" />`);
+      html = html.replace(/<meta\s+property="og:title"\s+content="[^"]*"\s*\/?>/i, () => `<meta property="og:title" content="${title}" />`);
+      html = html.replace(/<meta\s+property="og:description"\s+content="[^"]*"\s*\/?>/i, () => `<meta property="og:description" content="${desc}" />`);
+      html = html.replace(/<meta\s+property="og:image"\s+content="[^"]*"\s*\/?>/i, () => `<meta property="og:image" content="${image}" />`);
       
       // Update Twitter Tags
-      html = html.replace(/<meta\s+property="twitter:title"\s+content="[^"]*"\s*\/?>/i, `<meta property="twitter:title" content="${title}" />`);
-      html = html.replace(/<meta\s+property="twitter:description"\s+content="[^"]*"\s*\/?>/i, `<meta property="twitter:description" content="${desc}" />`);
-      html = html.replace(/<meta\s+property="twitter:image"\s+content="[^"]*"\s*\/?>/i, `<meta property="twitter:image" content="${image}" />`);
+      html = html.replace(/<meta\s+property="twitter:title"\s+content="[^"]*"\s*\/?>/i, () => `<meta property="twitter:title" content="${title}" />`);
+      html = html.replace(/<meta\s+property="twitter:description"\s+content="[^"]*"\s*\/?>/i, () => `<meta property="twitter:description" content="${desc}" />`);
+      html = html.replace(/<meta\s+property="twitter:image"\s+content="[^"]*"\s*\/?>/i, () => `<meta property="twitter:image" content="${image}" />`);
       
       // Update Favicon if exists
       if (content.faviconUrl) {
-        html = html.replace(/<link\s+rel="icon"\s+href="[^"]*"\s*\/?>/i, `<link rel="icon" href="${content.faviconUrl}" />`);
+        html = html.replace(/<link\s+rel="icon"\s+href="[^"]*"\s*\/?>/i, () => `<link rel="icon" href="${content.faviconUrl}" />`);
       }
       
       // Inject Schema.org JSON-LD Structured Data for AEO / GEO (Organization & FAQPage)
@@ -93,7 +93,7 @@ async function startServer() {
         "addressRegion": "인천광역시",
         "addressCountry": "KR"
       },
-      "description": "${desc}"
+      "description": "${desc.replace(/"/g, '\\"')}"
     }
     </script>
     <script type="application/ld+json">
@@ -129,7 +129,7 @@ async function startServer() {
     }
     </script>
     </head>`;
-      html = html.replace(/<\/head>/i, schemaMarkup);
+      html = html.replace(/<\/head>/i, () => schemaMarkup);
 
       // Pre-rendered SEO Semantic HTML Content Block
       const preRenderedContent = `
@@ -306,7 +306,24 @@ async function startServer() {
       </footer>
     </div>`;
 
-      html = html.replace(/<div id="root">[\s\S]*?<\/div>\s*<\/div>/i, preRenderedContent);
+      // Robust replacement of <div id="root">...</div> with pre-rendered content
+      const rootStartIndex = html.indexOf('<div id="root">');
+      if (rootStartIndex !== -1) {
+        const firstCloseIndex = html.indexOf('</div>', rootStartIndex);
+        if (firstCloseIndex !== -1) {
+          const secondCloseIndex = html.indexOf('</div>', firstCloseIndex + 6);
+          if (secondCloseIndex !== -1) {
+            const rootEndIndex = secondCloseIndex + 6;
+            html = html.substring(0, rootStartIndex) + preRenderedContent + html.substring(rootEndIndex);
+          } else {
+            // Fallback: replace with callback to avoid $ replacement issues
+            html = html.replace(/<div id="root">[\s\S]*?<\/div>\s*<\/div>/i, () => preRenderedContent);
+          }
+        }
+      } else {
+        // Fallback: replace with callback
+        html = html.replace(/<div id="root">[\s\S]*?<\/div>/i, () => preRenderedContent);
+      }
       
       return html;
     } catch (error) {
