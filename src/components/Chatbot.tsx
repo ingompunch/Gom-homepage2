@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MessageSquare, X, Send, ChevronRight } from 'lucide-react';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export const Chatbot: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -10,17 +9,6 @@ export const Chatbot: React.FC = () => {
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-
-  // Client-side Gemini configuration
-  const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || '');
-  const model = genAI.getGenerativeModel({ 
-    model: "gemini-1.5-flash",
-    systemInstruction: `당신은 종합 광고대행사 '곰애드(GOM AD)'의 전문 상담원입니다. 
-    우직하고 신뢰감 있는 말투를 사용하세요. 
-    브랜딩, 온라인 광고(네이버, 유튜브, 메타, 구글), 오프라인 광고(지하철, 버스, 전광판), 홈페이지 제작에 대해 전문적으로 답변하세요.
-    답변은 친절하게 하되 너무 길지 않게 핵심 위주로 하세요.
-    답변 끝에는 필요시 상세 상담 링크(https://litt.ly/gom_ads)를 안내하세요.`
-  });
 
   const options = [
     { label: "브랜딩 상담", action: "브랜딩 상담을 받고 싶어요." },
@@ -37,20 +25,25 @@ export const Chatbot: React.FC = () => {
     setIsLoading(true);
 
     try {
-      if (!import.meta.env.VITE_GEMINI_API_KEY) {
-        throw new Error('API 키가 설정되지 않았습니다.');
-      }
-
-      const chat = model.startChat({
-        history: messages.map(m => ({
-          role: m.role === 'ai' ? 'model' : 'user',
-          parts: [{ text: m.text }]
-        })),
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: text,
+          history: messages.map(m => ({
+            role: m.role === 'ai' ? 'model' : 'user',
+            parts: [{ text: m.text }]
+          })),
+        }),
       });
 
-      const result = await chat.sendMessage(text);
-      const response = await result.response;
-      const aiText = response.text();
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to get AI response');
+      }
+
+      const data = await response.json();
+      const aiText = data.text;
 
       if (aiText) {
         setMessages([...newMessages, { role: 'ai', text: aiText }]);
@@ -59,7 +52,7 @@ export const Chatbot: React.FC = () => {
       }
     } catch (error: any) {
       console.error("Chat Error:", error);
-      setMessages([...newMessages, { role: 'ai', text: '죄송합니다. 서비스에 일시적인 오류가 발생했습니다. (API 키 확인 필요)' }]);
+      setMessages([...newMessages, { role: 'ai', text: '죄송합니다. 서비스에 일시적인 오류가 발생했습니다.' }]);
     } finally {
       setIsLoading(false);
     }

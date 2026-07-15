@@ -111,10 +111,14 @@ function MainSite() {
   const [formData, setFormData] = useState({ name: '', contact: '', message: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [siteContent, setSiteContent] = useState<SiteContent | null>(null);
+  const [submitStatus, setSubmitStatus] = useState<'IDLE' | 'SUCCESS' | 'ERROR'>('IDLE');
+  const [errorMessage, setErrorMessage] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setSubmitStatus('IDLE');
+    setErrorMessage('');
     const path = 'inquiries';
     try {
       // 1. Save to Firestore directly from client
@@ -144,12 +148,13 @@ function MainSite() {
         console.error("Telegram notification failed:", tgErr);
       }
 
-      alert('상담 신청이 접수되었습니다. 곧 연락드리겠습니다!');
+      setSubmitStatus('SUCCESS');
       setFormData({ name: '', contact: '', message: '' });
     } catch (error: any) {
       console.error('Submission error:', error);
+      setSubmitStatus('ERROR');
+      setErrorMessage(error.message || '알 수 없는 오류가 발생했습니다.');
       handleFirestoreError(error, OperationType.CREATE, path);
-      alert(`접수 중 오류가 발생했습니다: ${error.message}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -786,41 +791,80 @@ function MainSite() {
               {/* Removed redundant contact info */}
             </div>
 
-            <div className="lg:w-1/2 bg-white/5 p-12 rounded-2xl border border-white/10">
-              <form onSubmit={handleSubmit} className="space-y-8">
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <input 
-                      type="text" 
-                      placeholder="Name" 
-                      required
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="bg-transparent border-b border-white/20 py-4 outline-none focus:border-brand-accent transition-colors text-white" 
-                    />
-                    <input 
-                      type="text" 
-                      placeholder="Email / Phone" 
-                      required
-                      value={formData.contact}
-                      onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
-                      className="bg-transparent border-b border-white/20 py-4 outline-none focus:border-brand-accent transition-colors text-white" 
-                    />
-                 </div>
-                 <textarea 
-                   placeholder="Your Message" 
-                   required
-                   value={formData.message}
-                   onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                   className="bg-transparent border-b border-white/20 py-4 w-full h-32 outline-none focus:border-brand-accent transition-colors resize-none mb-8 text-white" 
-                 />
-                 <button 
-                  type="submit" 
-                  disabled={isSubmitting}
-                  className="w-full py-6 bg-brand-accent text-white font-black uppercase tracking-[0.4em] hover:bg-white hover:text-black transition-all disabled:opacity-50"
-                 >
-                   {isSubmitting ? 'Sending...' : 'Submit Inquiry'}
-                 </button>
-              </form>
+            <div className="lg:w-1/2 bg-white/5 p-12 rounded-2xl border border-white/10 relative overflow-hidden">
+              <AnimatePresence mode="wait">
+                {submitStatus === 'SUCCESS' ? (
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="h-full flex flex-col items-center justify-center text-center py-12"
+                  >
+                    <div className="w-16 h-16 bg-brand-accent/20 border border-brand-accent rounded-full flex items-center justify-center text-brand-accent mb-6">
+                      <CheckCircle2 size={32} />
+                    </div>
+                    <h3 className="text-2xl font-bold mb-4 text-white">상담 신청이 접수되었습니다!</h3>
+                    <p className="text-white/60 text-sm max-w-sm mb-8 leading-relaxed">
+                      작성해 주신 성공 파트너십 제안 사항을 토대로 곰애드 담당자가 기재해 주신 이메일 혹은 번호로 빠르게 소통하겠습니다. 감사합니다.
+                    </p>
+                    <button 
+                      onClick={() => setSubmitStatus('IDLE')}
+                      className="px-8 py-4 bg-brand-accent hover:bg-white hover:text-black hover:scale-105 transition-all text-white text-xs font-black uppercase tracking-widest cursor-pointer"
+                    >
+                      새로운 문의 작성하기
+                    </button>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                  >
+                    <form onSubmit={handleSubmit} className="space-y-8">
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                          <input 
+                            type="text" 
+                            placeholder="Name" 
+                            required
+                            value={formData.name}
+                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                            className="bg-transparent border-b border-white/20 py-4 outline-none focus:border-brand-accent transition-colors text-white w-full" 
+                          />
+                          <input 
+                            type="text" 
+                            placeholder="Email / Phone" 
+                            required
+                            value={formData.contact}
+                            onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
+                            className="bg-transparent border-b border-white/20 py-4 outline-none focus:border-brand-accent transition-colors text-white w-full" 
+                          />
+                       </div>
+                       <textarea 
+                         placeholder="Your Message" 
+                         required
+                         value={formData.message}
+                         onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                         className="bg-transparent border-b border-white/20 py-4 w-full h-32 outline-none focus:border-brand-accent transition-colors resize-none mb-8 text-white" 
+                       />
+                       
+                       {submitStatus === 'ERROR' && (
+                         <div className="p-4 bg-red-400/10 border border-red-500/30 text-red-400 rounded-xl text-xs leading-relaxed">
+                           <p className="font-bold mb-1">접수 중 오차가 발생하였습니다:</p>
+                           <p className="opacity-80">{errorMessage}</p>
+                         </div>
+                       )}
+
+                       <button 
+                        type="submit" 
+                        disabled={isSubmitting}
+                        className="w-full py-6 bg-brand-accent text-white font-black uppercase tracking-[0.4em] hover:bg-white hover:text-black transition-all disabled:opacity-50 cursor-pointer"
+                       >
+                         {isSubmitting ? 'Sending...' : 'Submit Inquiry'}
+                       </button>
+                    </form>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </div>
